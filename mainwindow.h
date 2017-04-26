@@ -8,6 +8,9 @@
 #include <QVector>
 #include <QListWidgetItem>
 #include "message.h"
+#include <QFileDialog>
+#include <QTcpSocket>
+#include <QTcpServer>
 
 namespace Ui {
 class MainWindow;
@@ -30,6 +33,11 @@ private slots:
     void on_changePortButton_clicked();
     void on_changeNameButton_clicked();
     void onClientsListItemClicked(QListWidgetItem*);
+    void on_fileButton_clicked();
+
+    void filesSocketNewConnection();
+    void filesSocketReadyRead();
+    void filesSocketDisconnected();
 
 private:
     static const quint16 defaultPort = 1234;
@@ -39,6 +47,15 @@ private:
     QHostAddress myAddress;
     quint16 myPort;
     quint16 remotePort;
+
+    // Files
+    QTcpServer* filesServer;
+    QTcpSocket* filesSocket;
+    QFile* receivedFile;
+    QString fileName;
+    bool receiving;
+    int namesize;
+    int filesize;
 
     // Users, messages
     int selectedUserId; // index in following vectors
@@ -51,7 +68,7 @@ private:
     void processNewClient(QString connMessage, QHostAddress address);
     void addMessage(QString text, QHostAddress* address, bool privateMessage, int toId);
     void showMessageHistory(int userId);
-
+    void setupFilesSocket();
 };
 
 #endif // MAINWINDOW_H

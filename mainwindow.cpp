@@ -7,6 +7,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    receiving = false;
     selectedUserId = 0;
     myPort = 1234;
     remotePort = 1234;
@@ -34,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     bindSocket();
     sendOnlineBroadcast();
+    setupFilesSocket();
 
 
     // Clients list
@@ -147,11 +149,13 @@ void MainWindow::sendOnlineBroadcast(){
 void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddress)
 {
     // Check if not me
+    bool myself = false;
     foreach (const QHostAddress &address, QNetworkInterface::allAddresses()) {
         if (address.protocol() == QAbstractSocket::IPv4Protocol){
             if (address == senderAddress){
                 ui->plainTextEdit->appendPlainText("Me connected: " + connMessage);
                 // Remove return for testing
+                myself = true;
                 //return;
             }
         }
@@ -184,6 +188,9 @@ void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddres
         item->setText(text);
         ui->listWidget->addItem(item);
     }
+
+    // Send online broadcast for newly connected client
+    if (!myself) sendOnlineBroadcast();
 }
 
 void MainWindow::onClientsListItemClicked(QListWidgetItem* item){
@@ -236,4 +243,95 @@ void MainWindow::showMessageHistory(int userId)
     for (int i = 0; i < messages[userId].size(); i++){
         ui->plainTextEdit->appendPlainText(messages[userId][i]->getDisplayString(addressList, nameList));
     }
+}
+
+void MainWindow::on_fileButton_clicked()
+{
+    QString filename = QFileDialog::getOpenFileName(this, "Select a file");
+    qDebug() << filename;
+    QFile* file = new QFile(filename);
+    file->open(QIODevice::ReadOnly);
+    QByteArray data = file->readAll();
+
+
+    if (selectedUserId == 0) return;
+
+    filesSocket = new QTcpSocket(this);
+    filesSocket->connectToHost(*addressList[selectedUserId], 5678);
+    filesSocket->waitForConnected(3000);
+
+    QString nameStr = filename.split("/").last();
+    qDebug() << nameStr;
+    QByteArray infoArray;
+    QDataStream stream(&infoArray, QIODevice::WriteOnly);
+    stream << nameStr.size();
+    stream << data.size();
+    //stream << nameStr;
+
+    filesSocket->write(infoArray);
+    filesSocket->write(nameStr.toLatin1());
+    qDebug() << filesSocket->write(data);
+    filesSocket->flush();
+    filesSocket->waitForBytesWritten(3000);
+    filesSocket->close();
+}
+
+void MainWindow::setupFilesSocket()
+{
+    filesServer = new QTcpServer(this);
+    connect(filesServer, SIGNAL(newConnection()), this, SLOT(filesSocketNewConnection()));
+
+    if (!filesServer->listen(QHostAddress::Any, 5678)){
+        qDebug() << "TCP server error";
+    }
+    else {
+        qDebug() << "TCP server started";
+    }
+}
+
+void MainWindow::filesSocketNewConnection()
+{
+    qDebug() << "new connection";
+    QTcpSocket* socket = filesSocket = filesServer->nextPendingConnection();
+    connect(socket, SIGNAL(readyRead()), this, SLOT(filesSocketReadyRead()));
+    connect(socket, SIGNAL(disconnected()), this, SLOT(filesSocketDisconnected()));
+}
+
+void MainWindow::filesSocketReadyRead()
+{
+    // First bunch of data
+    // namesize (4b), filesize (4b), name, data
+    if (!receiving){
+        QByteArray sizesBytes = filesSocket->read(8);
+        QDataStream sizesStream(sizesBytes);
+        sizesStream >> namesize >> filesize;
+        QByteArray nameBytes = filesSocket->read(namesize);
+        fileName = QString(nameBytes);
+
+        QString path = QDir::homePath() + "/" + fileName;
+        qDebug() << path;
+        qDebug() << namesize << " " << filesize;
+        receivedFile = new QFile(path);
+        receivedFile->open(QIODevice::WriteOnly);
+
+        receiving = true;
+    }
+
+    QByteArray data = filesSocket->readAll();
+    qDebug() << "data received:\n" << data.size();
+
+    receivedFile->write(data);
+}
+
+void MainWindow::filesSocketDisconnected()
+{
+    receivedFile->flush();
+    receivedFile->close();
+    receivedFile->deleteLater();
+    disconnect(filesSocket, SIGNAL(readyRead()), this, SLOT(filesSocketReadyRead()));
+    disconnect(filesSocket, SIGNAL(disconnected()), this, SLOT(filesSocketDisconnected()));
+    delete filesSocket;
+    filesSocket = nullptr;
+    qDebug() << "disconnected";
+    receiving = false;
 }
