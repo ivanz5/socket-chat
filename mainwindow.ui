@@ -7,64 +7,28 @@
     <x>0</x>
     <y>0</y>
     <width>661</width>
-    <height>462</height>
+    <height>388</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <widget class="QLineEdit" name="portLineEdit">
-    <property name="geometry">
-     <rect>
-      <x>280</x>
-      <y>120</y>
-      <width>81</width>
-      <height>21</height>
-     </rect>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label">
-    <property name="geometry">
-     <rect>
-      <x>50</x>
-      <y>100</y>
-      <width>46</width>
-      <height>13</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>My port:</string>
-    </property>
-   </widget>
    <widget class="QPlainTextEdit" name="plainTextEdit">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>150</y>
+      <x>30</x>
+      <y>80</y>
       <width>411</width>
       <height>201</height>
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="connectButton">
-    <property name="geometry">
-     <rect>
-      <x>370</x>
-      <y>120</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Change</string>
-    </property>
-   </widget>
    <widget class="QLineEdit" name="messageLineEdit">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>360</y>
+      <x>30</x>
+      <y>290</y>
       <width>321</width>
       <height>20</height>
      </rect>
@@ -73,8 +37,8 @@
    <widget class="QPushButton" name="sendButton">
     <property name="geometry">
      <rect>
-      <x>380</x>
-      <y>360</y>
+      <x>370</x>
+      <y>290</y>
       <width>75</width>
       <height>23</height>
      </rect>
@@ -83,47 +47,11 @@
      <string>Send</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label_2">
-    <property name="geometry">
-     <rect>
-      <x>50</x>
-      <y>130</y>
-      <width>46</width>
-      <height>13</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Port:</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="changePortButton">
-    <property name="geometry">
-     <rect>
-      <x>370</x>
-      <y>90</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Change</string>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="myPortLineEdit">
-    <property name="geometry">
-     <rect>
-      <x>280</x>
-      <y>90</y>
-      <width>81</width>
-      <height>21</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QLineEdit" name="nameLineEdit">
     <property name="geometry">
      <rect>
       <x>130</x>
-      <y>60</y>
+      <y>46</y>
       <width>231</width>
       <height>21</height>
      </rect>
@@ -133,7 +61,7 @@
     <property name="geometry">
      <rect>
       <x>370</x>
-      <y>60</y>
+      <y>46</y>
       <width>75</width>
       <height>23</height>
      </rect>
@@ -146,7 +74,7 @@
     <property name="geometry">
      <rect>
       <x>50</x>
-      <y>64</y>
+      <y>50</y>
       <width>46</width>
       <height>13</height>
      </rect>
@@ -158,8 +86,8 @@
    <widget class="QListWidget" name="listWidget">
     <property name="geometry">
      <rect>
-      <x>480</x>
-      <y>150</y>
+      <x>470</x>
+      <y>80</y>
       <width>151</width>
       <height>201</height>
      </rect>
@@ -168,8 +96,8 @@
    <widget class="QPushButton" name="fileButton">
     <property name="geometry">
      <rect>
-      <x>480</x>
-      <y>360</y>
+      <x>470</x>
+      <y>290</y>
       <width>151</width>
       <height>23</height>
      </rect>

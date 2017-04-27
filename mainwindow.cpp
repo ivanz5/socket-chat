@@ -9,34 +9,20 @@ MainWindow::MainWindow(QWidget *parent) :
 
     receiving = false;
     selectedUserId = 0;
-    myPort = 1234;
-    remotePort = 1234;
-    ui->myPortLineEdit->setText(QString::number(myPort));
-    ui->portLineEdit->setText(QString::number(remotePort));
 
     socket = new QUdpSocket(this);
     connect(socket, SIGNAL(readyRead()), this, SLOT(readSocket()));
 
     ui->plainTextEdit->setReadOnly(true);
-    ui->plainTextEdit->setPlainText("localhost, port " + QString::number(myPort));
+    ui->fileButton->setEnabled(false);
 
     connect(ui->messageLineEdit, SIGNAL(returnPressed()), this, SLOT(on_sendButton_clicked()));
     connect(ui->listWidget, SIGNAL(itemClicked(QListWidgetItem*)), this, SLOT(onClientsListItemClicked(QListWidgetItem*)));
 
-    // Get own address
-    /*
-    foreach (const QHostAddress &address, QNetworkInterface::allAddresses()) {
-        if (address.protocol() == QAbstractSocket::IPv4Protocol && address != QHostAddress(QHostAddress::LocalHost)){
-            myAddress = address;
-            qDebug() << address;
-        }
-    }
-    ui->plainTextEdit->appendPlainText("My address: " + myAddress.toString());*/
-
+    // Sockets setup
     bindSocket();
-    sendOnlineBroadcast();
-    setupFilesSocket();
-
+    sendOnlineBroadcast(true);
+    setupFilesSocket();    
 
     // Clients list
     QListWidgetItem* item = new QListWidgetItem();
@@ -53,38 +39,38 @@ MainWindow::~MainWindow()
     socket->close();
 }
 
+bool MainWindow::isAddressLocal(QHostAddress hostAddress)
+{
+    QString s = hostAddress.toString();
+    int lastColon = s.lastIndexOf(':');
+    if (lastColon >= 0){
+        s = s.right(s.length() - lastColon - 1);
+        hostAddress = QHostAddress(s);
+    }
+
+    foreach (const QHostAddress &address, QNetworkInterface::allAddresses()) {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol && address == hostAddress) return true;
+    }
+    return false;
+}
+
 void MainWindow::bindSocket()
 {
-    //myAddress = QHostAddress("192.168.0.105");
     myAddress = QHostAddress::Any;
-    socket->bind(myAddress, myPort);
-    while (socket->localPort() == 0) {
+    socket->bind(myAddress, defaultPort);
+    if (socket->localPort() == 0){
+        ui->plainTextEdit->appendPlainText("Port error: 1234. Try another port.");
+    }
+    /*while (socket->localPort() == 0) {
         myPort = rand()%10000;
         socket->close();
         socket->bind(myAddress, myPort);
-    }
-    ui->myPortLineEdit->setText(QString::number(myPort));
+    }*/
 }
 
 void MainWindow::on_changeNameButton_clicked()
 {
-    sendOnlineBroadcast();
-}
-
-
-void MainWindow::on_changePortButton_clicked()
-{
-    myPort = ui->myPortLineEdit->text().toInt();
-    ui->plainTextEdit->appendPlainText("My port: " + QString::number(myPort));
-    socket->close();
-    socket->bind(QHostAddress::LocalHost, myPort);
-}
-
-
-void MainWindow::on_connectButton_clicked()
-{
-    remotePort = ui->portLineEdit->text().toInt();
-    ui->plainTextEdit->appendPlainText("New remote port: " + QString::number(remotePort));
+    sendOnlineBroadcast(false);
 }
 
 void MainWindow::on_sendButton_clicked()
@@ -95,13 +81,13 @@ void MainWindow::on_sendButton_clicked()
     addMessage(text, nullptr, selectedUserId != 0, selectedUserId);
     // Public message
     if (selectedUserId == 0){
-        QString data = "msg:" + text.toLatin1();
-        socket->writeDatagram(data.toLatin1(), QHostAddress::Broadcast, remotePort);
+        QString data = "msg:" + text;
+        socket->writeDatagram(data.toUtf8(), QHostAddress::Broadcast, defaultPort);
     }
     // Private message
     else {
         QString data = "prv:" + ui->messageLineEdit->text().toLatin1();
-        socket->writeDatagram(data.toLatin1(), *addressList[selectedUserId], remotePort);
+        socket->writeDatagram(data.toUtf8(), *addressList[selectedUserId], defaultPort);
     }
     ui->messageLineEdit->clear();
 }
@@ -124,11 +110,12 @@ void MainWindow::readSocket()
             QString text = dataStr.right(dataStr.length() - 4);
             addMessage(text, new QHostAddress(sender), true, 0);
         }
-        else if (dataStr.startsWith("conn:")) {
+        else if (dataStr.startsWith("conn:") || dataStr.startsWith("online:")) {
             QString info = dataStr + " " + sender.toString();
             qDebug() << info;
-            ui->plainTextEdit->appendPlainText(info);
-            processNewClient(dataStr, sender);
+            bool shouldSendResponse = dataStr.startsWith("conn:");
+            if (shouldSendResponse) processNewClient(dataStr, sender, true);
+            else processNewClient(dataStr, sender, false);
         }
         else {
             qDebug() << dataStr;
@@ -136,33 +123,30 @@ void MainWindow::readSocket()
     }
 }
 
-void MainWindow::sendOnlineBroadcast(){
+void MainWindow::sendOnlineBroadcast(bool shouldSendResponse){
     QString name = ui->nameLineEdit->text();
     if (name.isEmpty()) {
         name = "Client";
         ui->nameLineEdit->setText(name);
     }
-    QString message = "conn:" + name;
+    QString message = (shouldSendResponse ? "conn:" : "online:") + name;
     socket->writeDatagram(message.toLatin1(), QHostAddress::Broadcast, defaultPort);
 }
 
-void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddress)
+void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddress, bool shouldSendResponse)
 {
     // Check if not me
     bool myself = false;
-    foreach (const QHostAddress &address, QNetworkInterface::allAddresses()) {
-        if (address.protocol() == QAbstractSocket::IPv4Protocol){
-            if (address == senderAddress){
-                ui->plainTextEdit->appendPlainText("Me connected: " + connMessage);
-                // Remove return for testing
-                myself = true;
-                //return;
-            }
-        }
+    if (isAddressLocal(senderAddress)){
+        // Remove return for testing
+        myself = true;
+        //return;
     }
 
     // Add to people list
-    QString name = connMessage.right(connMessage.size() - 5);
+    QString name;
+    if (connMessage.startsWith("conn:")) name = connMessage.right(connMessage.size() - 5);
+    else name = connMessage.right(connMessage.size() - 7);
     // Check if just name changed
     bool exists = false;
     for (int i = 0; i < addressList.size(); i++){
@@ -190,13 +174,13 @@ void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddres
     }
 
     // Send online broadcast for newly connected client
-    if (!myself) sendOnlineBroadcast();
+    if (!myself && shouldSendResponse) sendOnlineBroadcast(false);
 }
 
 void MainWindow::onClientsListItemClicked(QListWidgetItem* item){
     selectedUserId = ui->listWidget->row(item);
-    qDebug() << selectedUserId;
     showMessageHistory(selectedUserId);
+    ui->fileButton->setEnabled(selectedUserId != 0);
 }
 
 /**
@@ -209,7 +193,7 @@ void MainWindow::onClientsListItemClicked(QListWidgetItem* item){
 void MainWindow::addMessage(QString text, QHostAddress* address, bool privateMessage, int toId)
 {
     int index = 0;
-    qDebug() << (address == nullptr ? "address null" : address->toString());
+    qDebug() << "addMessage: " + (address == nullptr ? "address null" : address->toString());
 
     if (privateMessage){
         // Outgoing
@@ -247,33 +231,35 @@ void MainWindow::showMessageHistory(int userId)
 
 void MainWindow::on_fileButton_clicked()
 {
+    if (selectedUserId == 0) return;
+
     QString filename = QFileDialog::getOpenFileName(this, "Select a file");
-    qDebug() << filename;
+    qDebug() << "Sending file: " + filename;
     QFile* file = new QFile(filename);
     file->open(QIODevice::ReadOnly);
     QByteArray data = file->readAll();
-
-
-    if (selectedUserId == 0) return;
 
     filesSocket = new QTcpSocket(this);
     filesSocket->connectToHost(*addressList[selectedUserId], 5678);
     filesSocket->waitForConnected(3000);
 
     QString nameStr = filename.split("/").last();
-    qDebug() << nameStr;
     QByteArray infoArray;
     QDataStream stream(&infoArray, QIODevice::WriteOnly);
     stream << nameStr.size();
     stream << data.size();
-    //stream << nameStr;
 
     filesSocket->write(infoArray);
     filesSocket->write(nameStr.toLatin1());
-    qDebug() << filesSocket->write(data);
+    quint64 bytesWritten = filesSocket->write(data);
     filesSocket->flush();
     filesSocket->waitForBytesWritten(3000);
     filesSocket->close();
+
+    QString msgText;
+    if (bytesWritten == -1) msgText = "file transfer failed: " + nameStr;
+    else msgText = "file sent: " + nameStr;
+    addMessage(msgText, nullptr, true, selectedUserId);
 }
 
 void MainWindow::setupFilesSocket()
@@ -330,8 +316,13 @@ void MainWindow::filesSocketDisconnected()
     receivedFile->deleteLater();
     disconnect(filesSocket, SIGNAL(readyRead()), this, SLOT(filesSocketReadyRead()));
     disconnect(filesSocket, SIGNAL(disconnected()), this, SLOT(filesSocketDisconnected()));
-    delete filesSocket;
-    filesSocket = nullptr;
     qDebug() << "disconnected";
     receiving = false;
+
+    // Indicate file received with message
+    QString text = "file received: " + QDir::homePath() + "/" + fileName;
+    addMessage(text, new QHostAddress(filesSocket->peerAddress()), true, 0);
+
+    delete filesSocket;
+    filesSocket = nullptr;
 }

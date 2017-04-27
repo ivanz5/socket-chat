@@ -28,9 +28,7 @@ public slots:
     void readSocket();
 
 private slots:
-    void on_connectButton_clicked();
     void on_sendButton_clicked();
-    void on_changePortButton_clicked();
     void on_changeNameButton_clicked();
     void onClientsListItemClicked(QListWidgetItem*);
     void on_fileButton_clicked();
@@ -45,8 +43,6 @@ private:
     Ui::MainWindow *ui;
     QUdpSocket* socket;
     QHostAddress myAddress;
-    quint16 myPort;
-    quint16 remotePort;
 
     // Files
     QTcpServer* filesServer;
@@ -63,9 +59,10 @@ private:
     QVector<QHostAddress*> addressList;
     QVector<QVector<Message*>> messages; // no no no
 
+    bool isAddressLocal(QHostAddress hostAddress);
     void bindSocket();
-    void sendOnlineBroadcast();
-    void processNewClient(QString connMessage, QHostAddress address);
+    void sendOnlineBroadcast(bool shouldSendResponse);
+    void processNewClient(QString connMessage, QHostAddress address, bool shouldSendResponse);
     void addMessage(QString text, QHostAddress* address, bool privateMessage, int toId);
     void showMessageHistory(int userId);
     void setupFilesSocket();
