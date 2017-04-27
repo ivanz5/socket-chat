@@ -15,11 +15,9 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         mainwindow.cpp \
-    clientitem.cpp \
     message.cpp
 
 HEADERS  += mainwindow.h \
-    clientitem.h \
     message.h
 
 FORMS    += mainwindow.ui

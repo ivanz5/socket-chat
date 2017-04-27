@@ -7,8 +7,13 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    connected = false;
     receiving = false;
     selectedUserId = 0;
+    ui->plainTextEdit->setEnabled(false);
+    ui->messageLineEdit->setEnabled(false);
+    ui->sendButton->setEnabled(false);
+    ui->listWidget->setEnabled(false);
 
     socket = new QUdpSocket(this);
     connect(socket, SIGNAL(readyRead()), this, SLOT(readSocket()));
@@ -17,12 +22,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->fileButton->setEnabled(false);
 
     connect(ui->messageLineEdit, SIGNAL(returnPressed()), this, SLOT(on_sendButton_clicked()));
-    connect(ui->listWidget, SIGNAL(itemClicked(QListWidgetItem*)), this, SLOT(onClientsListItemClicked(QListWidgetItem*)));
-
-    // Sockets setup
-    bindSocket();
-    sendOnlineBroadcast(true);
-    setupFilesSocket();    
+    connect(ui->listWidget, SIGNAL(itemClicked(QListWidgetItem*)), this, SLOT(onClientsListItemClicked(QListWidgetItem*)));  
 
     // Clients list
     QListWidgetItem* item = new QListWidgetItem();
@@ -70,7 +70,20 @@ void MainWindow::bindSocket()
 
 void MainWindow::on_changeNameButton_clicked()
 {
-    sendOnlineBroadcast(false);
+    if (!connected){
+        if (ui->nameLineEdit->text().isEmpty()) return;
+        bindSocket();
+        sendOnlineBroadcast(true);
+        setupFilesSocket();
+        ui->plainTextEdit->setEnabled(true);
+        ui->messageLineEdit->setEnabled(true);
+        ui->sendButton->setEnabled(true);
+        ui->listWidget->setEnabled(true);
+        ui->changeNameButton->setText("Change");
+    }
+    else {
+        sendOnlineBroadcast(false);
+    }
 }
 
 void MainWindow::on_sendButton_clicked()
@@ -86,7 +99,7 @@ void MainWindow::on_sendButton_clicked()
     }
     // Private message
     else {
-        QString data = "prv:" + ui->messageLineEdit->text().toLatin1();
+        QString data = "prv:" + ui->messageLineEdit->text();
         socket->writeDatagram(data.toUtf8(), *addressList[selectedUserId], defaultPort);
     }
     ui->messageLineEdit->clear();
@@ -103,10 +116,12 @@ void MainWindow::readSocket()
 
         QString dataStr = QString(datagram);
         if (dataStr.startsWith("msg:")) {
+            if (isAddressLocal(sender)) return; // Myself
             QString text = dataStr.right(dataStr.length() - 4);
             addMessage(text, new QHostAddress(sender), false, 0);
         }
         else if (dataStr.startsWith("prv:")){
+            if (isAddressLocal(sender)) return; // Myself
             QString text = dataStr.right(dataStr.length() - 4);
             addMessage(text, new QHostAddress(sender), true, 0);
         }
@@ -130,7 +145,7 @@ void MainWindow::sendOnlineBroadcast(bool shouldSendResponse){
         ui->nameLineEdit->setText(name);
     }
     QString message = (shouldSendResponse ? "conn:" : "online:") + name;
-    socket->writeDatagram(message.toLatin1(), QHostAddress::Broadcast, defaultPort);
+    socket->writeDatagram(message.toUtf8(), QHostAddress::Broadcast, defaultPort);
 }
 
 void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddress, bool shouldSendResponse)
@@ -140,7 +155,7 @@ void MainWindow::processNewClient(QString connMessage, QHostAddress senderAddres
     if (isAddressLocal(senderAddress)){
         // Remove return for testing
         myself = true;
-        //return;
+        return;
     }
 
     // Add to people list
@@ -234,6 +249,8 @@ void MainWindow::on_fileButton_clicked()
     if (selectedUserId == 0) return;
 
     QString filename = QFileDialog::getOpenFileName(this, "Select a file");
+    if (filename.isEmpty()) return; // File selection cancelled
+
     qDebug() << "Sending file: " + filename;
     QFile* file = new QFile(filename);
     file->open(QIODevice::ReadOnly);
@@ -246,11 +263,10 @@ void MainWindow::on_fileButton_clicked()
     QString nameStr = filename.split("/").last();
     QByteArray infoArray;
     QDataStream stream(&infoArray, QIODevice::WriteOnly);
-    stream << nameStr.size();
-    stream << data.size();
+    stream << nameStr.toUtf8().size();
 
     filesSocket->write(infoArray);
-    filesSocket->write(nameStr.toLatin1());
+    filesSocket->write(nameStr.toUtf8());
     quint64 bytesWritten = filesSocket->write(data);
     filesSocket->flush();
     filesSocket->waitForBytesWritten(3000);
@@ -288,15 +304,14 @@ void MainWindow::filesSocketReadyRead()
     // First bunch of data
     // namesize (4b), filesize (4b), name, data
     if (!receiving){
-        QByteArray sizesBytes = filesSocket->read(8);
+        QByteArray sizesBytes = filesSocket->read(4);
         QDataStream sizesStream(sizesBytes);
-        sizesStream >> namesize >> filesize;
+        sizesStream >> namesize;
         QByteArray nameBytes = filesSocket->read(namesize);
         fileName = QString(nameBytes);
 
         QString path = QDir::homePath() + "/" + fileName;
         qDebug() << path;
-        qDebug() << namesize << " " << filesize;
         receivedFile = new QFile(path);
         receivedFile->open(QIODevice::WriteOnly);
 

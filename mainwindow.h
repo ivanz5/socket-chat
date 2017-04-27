@@ -43,6 +43,7 @@ private:
     Ui::MainWindow *ui;
     QUdpSocket* socket;
     QHostAddress myAddress;
+    bool connected;
 
     // Files
     QTcpServer* filesServer;
@@ -51,13 +52,12 @@ private:
     QString fileName;
     bool receiving;
     int namesize;
-    int filesize;
 
     // Users, messages
     int selectedUserId; // index in following vectors
     QVector<QString> nameList;
     QVector<QHostAddress*> addressList;
-    QVector<QVector<Message*>> messages; // no no no
+    QVector<QVector<Message*>> messages;
 
     bool isAddressLocal(QHostAddress hostAddress);
     void bindSocket();
